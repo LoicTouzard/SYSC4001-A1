@@ -7,8 +7,7 @@ class CustomerGenerator
 	public:
 
 		CustomerGenerator(unsigned int minMS, unsigned int maxMS);
-		
-		CustomerGenerator();
+
 		
 		// generate customers (infinite loop)
 		void generate();

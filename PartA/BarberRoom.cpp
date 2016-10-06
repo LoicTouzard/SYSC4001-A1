@@ -8,11 +8,7 @@ BarberRoom::BarberRoom(unsigned int timeForShavingMS)
 {
 	this->timeForShavingMS = timeForShavingMS;
 	this->sleeping = true;
-	cout << "BarberRoom : Created (Shaving time set at "<< this->timeForShavingMS << ")" << endl;
-}
-
-BarberRoom::BarberRoom ():BarberRoom(1000u)
-{
+	cout << "BarberRoom : Created (Shaving time set at "<< this->timeForShavingMS << "ms)" << endl;
 }
 
 //cuts hair of a custommer

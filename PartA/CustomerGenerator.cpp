@@ -14,10 +14,6 @@ CustomerGenerator::CustomerGenerator(unsigned int minMS, unsigned int maxMS)
 	cout << "CustomerGenerator : Created (Generating rate between " << this->minMS << "ms and " << this->maxMS << "ms)" << endl;
 }
 
-CustomerGenerator::CustomerGenerator()
-	:CustomerGenerator(500u, 1500u)
-{
-}
 
 void CustomerGenerator::generate()
 {

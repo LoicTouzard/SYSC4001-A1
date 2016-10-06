@@ -7,8 +7,7 @@ class BarberRoom
 	public:
 
 		BarberRoom(unsigned int timeForShavingMS);
-		
-		BarberRoom();
+
 		
 		//cuts hair of a custommer
 		void ShaveCustomer();
