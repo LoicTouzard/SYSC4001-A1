@@ -1,6 +1,9 @@
 #if ! defined ( CUSTOMERGENERATOR_H )
 #define CUSTOMERGENERATOR_H
 
+
+#include "WaitingRoom.hpp"
+
 class CustomerGenerator
 {
 	// methods
@@ -16,8 +19,7 @@ class CustomerGenerator
 		void generate(unsigned int n);
 		
 		virtual ~CustomerGenerator();
-	
-	private:
+
 		// create one customer in a random time
 		void nextCustomer();
 

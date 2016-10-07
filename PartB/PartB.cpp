@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <time.h>
 
+#include "ipcInfo.hpp"
 #include "BarberRoom.hpp"
 #include "CustomerGenerator.hpp"
 #include "WaitingRoom.hpp"
@@ -16,30 +17,32 @@
 
 using namespace std;
 
-typedef struct incomingCustomers{
-	int amount;
-} incomingCustomers;
-
-typedef struct nextToBeShaved{
-	bool exists;
-} nextToBeShaved;
-
-
-void barberProcess()
+void barberProcess(BarberRoom* barber, WaitingRoom* room)
 {
-	BarberRoom barber(1000u);
-	
+	int haircut = 0;
+	while(true)
+	{
+		if(!room->isEmpty())// if there is a custommer
+		{
+			room->freeCustomer(); // he leaves the waiting room
+			barber->shaveCustomer();// takes some time
+			cout << ++haircut << " customers shaved" << endl;
+		}
+	}
 }
 
-void waitingRoomProcess()
+void waitingRoomProcess(WaitingRoom* room, BarberRoom* barber)
 {
-	WaitingRoom room(3);
+	// How is this process supposed to do something ? the waiting Room is for me just a shared ressource used by the 2 others processes.
 }
 
-void customerGeneratorProcess()
+void customerGeneratorProcess(CustomerGenerator* customers, WaitingRoom* room)
 {
-	CustomerGenerator customers(500u, 1500u);
-	customers.generate(10);
+	for(int i = 1; i <= 100000; ++i) // generate 100000 customers
+	{
+		customers->nextCustomer(); // generates a new customer
+		room->newCustomer(); // attemps to add him in the waiting room
+	}
 }
 
 
@@ -48,52 +51,60 @@ void customerGeneratorProcess()
 int main(int argc, char **argv)
 {
 	// create IPCs
-	//const key_t key_incomingCustomers = 1357;
-	//const key_t key_nextToBeShaved = 2568;
-	int incomingCustomers_id;
-	int nextToBeShaved_id;
-	incomingCustomers *shm_incomingCustomers;
-	nextToBeShaved *shm_nextToBeShaved;
+	//const key_t key_waitingCustomers = 1357;
+	//const key_t key_barberState = 2568;
+	int waitingCustomers_id;
+	int barberState_id;
+	waitingCustomers *shm_waitingCustomers;
+	barberState *shm_barberState;
+	
 	
 	// create the shared memories
-    if ((incomingCustomers_id = shmget(IPC_PRIVATE, sizeof(incomingCustomers), IPC_CREAT | 0666)) < 0)
+    if ((waitingCustomers_id = shmget(IPC_PRIVATE, sizeof(waitingCustomers), IPC_CREAT | 0666)) < 0)
     {
-        perror("Parent process : shmget() failed for incomingCustomers !");
+        perror("Parent process : shmget() failed for waitingCustomers !");
         exit(EXIT_FAILURE);
     }
     else
     {
-		cout << "Parent process : Shared memory incomingCustomers created"<< endl;
+		cout << "Parent process : Shared memory waitingCustomers created"<< endl;
 	}
-    if ((nextToBeShaved_id = shmget(IPC_PRIVATE, sizeof(nextToBeShaved), IPC_CREAT | 0666)) < 0)
+    if ((barberState_id = shmget(IPC_PRIVATE, sizeof(barberState), IPC_CREAT | 0666)) < 0)
     {
-        perror("Parent process : shmget() failed for nextToBeShaved !");
+        perror("Parent process : shmget() failed for barberState !");
         exit(EXIT_FAILURE);
     }
     else
     {
-		cout << "Parent process : Shared memory nextToBeShaved created"<< endl;
+		cout << "Parent process : Shared memory barberState created"<< endl;
 	}
 	
 	// attach to memory
-	if ((shm_incomingCustomers = (incomingCustomers *)shmat(incomingCustomers_id, 0, 0)) == (incomingCustomers *) -1)
+	if ((shm_waitingCustomers = (waitingCustomers *)shmat(waitingCustomers_id, 0, 0)) == (waitingCustomers *) -1)
 	{
-        perror("Parent process : shmat() failed for incomingCustomers !");
+        perror("Parent process : shmat() failed for waitingCustomers !");
         exit(EXIT_FAILURE);
     }
     else
     {
-		cout << "Parent process : Shared memory incomingCustomers attached"<< endl;
+		cout << "Parent process : Shared memory waitingCustomers attached"<< endl;
 	}
-    if ((shm_nextToBeShaved = (nextToBeShaved *)shmat(nextToBeShaved_id, 0, 0)) == (nextToBeShaved *) -1)
+    if ((shm_barberState = (barberState *)shmat(barberState_id, 0, 0)) == (barberState *) -1)
     {
-        perror("Parent process : shmat() failed for nextToBeShaved !");
+        perror("Parent process : shmat() failed for barberState !");
         exit(EXIT_FAILURE);
     }
     else
     {
-		cout << "Parent process : Shared memory nextToBeShaved attached"<< endl;
+		cout << "Parent process : Shared memory barberState attached"<< endl;
 	}
+	
+	
+	// creates objects
+	
+	WaitingRoom* room = new WaitingRoom(4, shm_waitingCustomers);
+	BarberRoom* barber = new BarberRoom(1u, shm_barberState);
+	CustomerGenerator* customers = new CustomerGenerator(500u,600u);
 	
 	
 	// start processes
@@ -102,8 +113,11 @@ int main(int argc, char **argv)
     // create the barber room
     if ((barber_pid = fork()) == 0)
     {
+		delete customers;
 		// Barber process
-		barberProcess();
+		barberProcess(barber, room);
+		delete room;
+		delete barber;
 		cout << "BarberRoom : End of barber process" << endl;
     }
     else if (barber_pid > 0)
@@ -111,12 +125,14 @@ int main(int argc, char **argv)
         // parent process
         cout << "Parent process : Barber PID = " << barber_pid << endl;
         
-        
 		// create the customers generator
 		if ((customers_pid = fork()) == 0)
 		{
 			// customers generator process
-			customerGeneratorProcess();			
+			delete barber;
+			customerGeneratorProcess(customers, room);
+			delete customers;
+			delete room;
 			cout << "CustomerGenerator : End of customer generator process" << endl;
 		}
 		else if (customers_pid > 0)
@@ -128,11 +144,18 @@ int main(int argc, char **argv)
 			if ((room_pid = fork()) == 0)
 			{
 				// waiting room process
-				waitingRoomProcess();
+				waitingRoomProcess(room, barber);
+				delete customers;
+				delete room;
+				delete barber;	
 				cout << "WaitingRoom : End of waiting room process" << endl;
 			}
 			else if (customers_pid > 0)
 			{
+				
+				delete customers;
+				delete room;
+				delete barber;
 				// parent process
 				cout << "Parent process : Waiting Room PID = " << room_pid << endl;
 				
@@ -146,23 +169,23 @@ int main(int argc, char **argv)
 				cout << "Parent process : Got dead child : " << dead << endl;
 				
 				// Remove the shared memory
-				if (shmctl(incomingCustomers_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
+				if (shmctl(waitingCustomers_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
 				{
-					perror("Parent process : shmctl() failed for incomingCustomers !");
+					perror("Parent process : shmctl() failed for waitingCustomers !");
 					exit(EXIT_FAILURE);
 				}
 				else
 				{
-					cout << "Parent process : Shared memory incomingCustomers removed"<< endl;
+					cout << "Parent process : Shared memory waitingCustomers removed"<< endl;
 				}
-				if (shmctl(nextToBeShaved_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
+				if (shmctl(barberState_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
 				{
-					perror("Parent process : shmctl() failed for nextToBeShaved !");
+					perror("Parent process : shmctl() failed for barberState !");
 					exit(EXIT_FAILURE);
 				}
 				else
 				{
-					cout << "Parent process : Shared memory nextToBeShaved removed"<< endl;
+					cout << "Parent process : Shared memory barberState removed"<< endl;
 				}
 				
 				

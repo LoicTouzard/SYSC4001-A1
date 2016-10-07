@@ -1,18 +1,14 @@
 #if ! defined ( IPCINFO_H )
 #define IPCINFO_H
 
-#include <sys/ipc.h>
-#include <sys/shm.h>
 
+typedef struct waitingCustomers{
+	unsigned int amount;
+} waitingCustomers;
 
-
-typedef struct incomingCustomers{
-	int amount;
-} incomingCustomers;
-
-typedef struct nextToBeShaved{
-	bool exists;
-} nextToBeShaved;
+typedef struct barberState{
+	bool sleeping;
+} barberState;
 
 
 #endif // IPCINFO_H

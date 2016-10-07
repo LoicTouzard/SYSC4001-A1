@@ -1,18 +1,105 @@
-# Part A
+# Part B
 
 ## Compile and run :
- cd PartA/
+ cd PartB/
  make
- ./PartA
+ ./PartB
  
  
 ## What is happening ?
 
-A main process (parent) creates 3 other processes : barberProcess, waitingRoomProcess, customerGeneratorProcess
 
-The 3 processes, since we're not using shared memory, the program doesn't work.
-The barber will be created and die.
-The waiting room will be created and die.
-The Customers generator will be created, generates 10 customers and die.
+A main process (parent) :
+- create and and attach 2 shared memories. One for the waiting room amount of people, the other one for the state of the barber.
+- instanciate dynamically the 3 main objects WaitingRoom, BarberRoom, CustomerGenerator of our system.
+- creates 3 other processes : barberProcess, waitingRoomProcess, customerGeneratorProcess
+- wait for them to die and cleanup the ressources (dynamic objects and shared memory).
 
-Shared menory will be introduced in Part B.
+The 3 processes :
+- The barber process will :
+	- be created and free the CustomerGenerator unused
+	- infinitely loop over
+		- checking if there is someone in the waiting room
+		- shave him or skip if there is no one
+	- free WaitingRoom and BarberRoom objects and die
+- The waiting room process will be created free objects and die. I don't see its utility here. The waiting Room is for me just a shared ressource used by the 2 others processes.
+- The customers generator process will :
+	- be created and free the BarberRoom unused
+	- loop 100000 times over
+		- generates customers
+		- attemps to add him in the waiting room
+	- free WaitingRoom and CustomerGenerator objects and die
+
+
+## Deadlocks ?
+
+According to me, deadlock are created when 2 processes are each waiting the other one to free a ressource.
+This append when mutex/semaphores are missused.
+I don't have any protection to data in my program so far. Thus I can't see any deadlock.
+
+However, my shared data isn't protected and data corruption may occur.
+I tried to create this situation, To do that I've set some objective and counters to my processes :
+- The CustomerGenerator process has to create 100 000 customers.
+- The Barber process shave any client arriving in his room. He counts how many clients he shaved.
+- The Waiting Room has only 4 place, and count how many client it rejected.
+
+At the end we should get : shaved customer + rejected customers = generated customers = 100 000
+Obviously, to help the happening of these corruption I commented every `sleep(x millisec)` in my code.
+
+As output I could have observed : (tail)
+```
+WaitingRoom : Rejected a new customer (4 customers already in the room) 31452 so far.
+WaitingRoom : Freed a customer (3 customers in the room)
+CustomerGenerator : New customer created in 515ms
+BarberRoom : Shave a customer
+WaitingRoom : Accepted a new customer (4 customers in the room)
+68545 customers shaved
+CustomerGenerator : End of customer generator process
+WaitingRoom : Freed a customer (3 customers in the room)
+BarberRoom : Shave a customer
+68546 customers shaved
+WaitingRoom : Freed a customer (2 customers in the room)
+BarberRoom : Shave a customer
+68547 customers shaved
+WaitingRoom : Freed a customer (1 customers in the room)
+BarberRoom : Shave a customer
+68548 customers shaved
+WaitingRoom : Freed a customer (0 customers in the room)
+BarberRoom : Shave a customer
+68549 customers shaved
+
+```
+=> 31452 + 68549 = 100001 customers
+
+Another output : 
+```
+WaitingRoom : Rejected a new customer (4 customers already in the room) 32018 so far.
+WaitingRoom : Freed a customer (3 customers in the room)
+CustomerGenerator : New customer created in 550ms
+BarberRoom : Shave a customer
+WaitingRoom : Accepted a new customer (4 customers in the room)
+67979 customers shaved
+CustomerGenerator : New customer created in 509ms
+WaitingRoom : Freed a customer (3 customers in the room)
+WaitingRoom : Accepted a new customer (4 customers in the room)
+BarberRoom : Shave a customer
+CustomerGenerator : End of customer generator process
+67980 customers shaved
+WaitingRoom : Freed a customer (3 customers in the room)
+BarberRoom : Shave a customer
+67981 customers shaved
+WaitingRoom : Freed a customer (2 customers in the room)
+BarberRoom : Shave a customer
+67982 customers shaved
+WaitingRoom : Freed a customer (1 customers in the room)
+BarberRoom : Shave a customer
+67983 customers shaved
+WaitingRoom : Freed a customer (0 customers in the room)
+BarberRoom : Shave a customer
+67984 customers shaved
+```
+=> 32018 + 67984 = 100002 customers
+
+Here our memory has been corrupted because the barber and the generator modified the numner of people in the waiting room at the same time.
+
+So to correct issue this I need to add semaphores.

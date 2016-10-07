@@ -26,7 +26,7 @@ void CustomerGenerator::generate()
 
 void CustomerGenerator::generate(unsigned int n)
 {
-	cout << "CustomerGenerator : Starting generation of " << n << "customers" << endl;
+	cout << "CustomerGenerator : Starting generation of " << n << " customers" << endl;
 	for(unsigned int i = 0; i < n; ++i)
 	{
 		this->nextCustomer();
@@ -36,11 +36,11 @@ void CustomerGenerator::generate(unsigned int n)
 void CustomerGenerator::nextCustomer()
 {
 	unsigned int waitMS = rand() % (this->maxMS - this->minMS) + this->minMS;
-	usleep(waitMS*1000);
+	//usleep(waitMS*1000);
 	cout << "CustomerGenerator : New customer created in " << waitMS << "ms" << endl;
 }
 
 CustomerGenerator::~CustomerGenerator()
 {
-	cout << "CustomerGenerator : Destroyed" << endl;
+	//cout << "CustomerGenerator : Destroyed" << endl;
 }

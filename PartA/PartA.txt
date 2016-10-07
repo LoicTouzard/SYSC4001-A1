@@ -15,4 +15,4 @@ The barber will be created and die.
 The waiting room will be created and die.
 The Customers generator will be created, generates 10 customers and die.
 
-Shared menory will be introduced in Part B.
+Shared memory will be introduced in Part B.
