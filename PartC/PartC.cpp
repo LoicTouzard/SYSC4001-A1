@@ -8,8 +8,12 @@
 #include <sys/shm.h>
 #include <errno.h>
 #include <time.h>
+#include <stdbool.h>
+#include <sys/sem.h>
+#include <semaphore.h>
 
 #include "ipcInfo.hpp"
+#include "mutex.hpp"
 #include "BarberRoom.hpp"
 #include "CustomerGenerator.hpp"
 #include "WaitingRoom.hpp"
@@ -46,13 +50,15 @@ void customerGeneratorProcess(CustomerGenerator* customers, WaitingRoom* room)
 }
 
 
-
-
 int main(int argc, char **argv)
 {
-	// create IPCs
+	/* create IPCs */
 	int barberShop_id;
 	barberShop *shm_barberShop;
+	int sem_barberState_id;
+	int sem_waitingCustomers_id;
+	
+	
 	
 	
 	// create the shared memory
@@ -70,6 +76,15 @@ int main(int argc, char **argv)
 	if ((shm_barberShop = (barberShop *)shmat(barberShop_id, 0, 0)) == (barberShop *) -1)
 	{
         perror("Parent process : shmat() failed for barberShop !");
+        // Remove the shared memory
+		if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
+		{
+			perror("Parent process : shmctl() failed for barberShop !");
+		}
+		else
+		{
+			cout << "Parent process : Shared memory barberShop removed"<< endl;
+		}
         exit(EXIT_FAILURE);
     }
     else
@@ -80,13 +95,62 @@ int main(int argc, char **argv)
 	}
 	
 	
-	// creates objects
+	
+	
+	
+	// creates the semaphores
+	if ((sem_barberState_id = mutexCreate()) < 0)
+    {
+        perror("Parent process : mutexCreate() failed for barberState !");
+        // Remove the shared memory
+		if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
+		{
+			perror("Parent process : shmctl() failed for barberShop !");
+		}
+		else
+		{
+			cout << "Parent process : Shared memory barberShop removed"<< endl;
+		}
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+		cout << "Parent process : Mutex barberState created"<< endl;
+	}
+	if ((sem_waitingCustomers_id = mutexCreate()) < 0)
+    {
+        perror("Parent process : mutexCreate() failed for waitingCustomers !");
+        //remove the other semaphore
+		mutexRemove(sem_barberState_id);
+		cout << "Parent process : Mutex barberState removed"<< endl;
+        // Remove the shared memory
+		if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
+		{
+			perror("Parent process : shmctl() failed for barberShop !");
+		}
+		else
+		{
+			cout << "Parent process : Shared memory barberShop removed"<< endl;
+		}
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+		cout << "Parent process : Mutex waitingCustomers created"<< endl;
+	}
+	
+	
+	
+	
+	
+	/* creates objects*/
+	
 	WaitingRoom* room = new WaitingRoom(4, shm_barberShop);
 	BarberRoom* barber = new BarberRoom(1u, shm_barberShop);
 	CustomerGenerator* customers = new CustomerGenerator(500u,600u);
 	
-	
-	// start processes
+
+	/* start processes */
     pid_t barber_pid, customers_pid, room_pid;
         
     // create the barber room
@@ -147,6 +211,13 @@ int main(int argc, char **argv)
 				dead = wait(NULL);
 				cout << "Parent process : Got dead child : " << dead << endl;
 				
+				
+				//remove barberState Mutex
+				mutexRemove(sem_barberState_id);
+				cout << "Parent process : Mutex barberState removed"<< endl;
+				//remove waitingCustomers Mutex
+				mutexRemove(sem_waitingCustomers_id);
+				cout << "Parent process : Mutex waitingCustomers removed"<< endl;
 				// Remove the shared memory
 				if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
 				{
@@ -164,6 +235,22 @@ int main(int argc, char **argv)
 			{
 				// fork failed
 				cout << "Parent process : fork() failed for creation of Waiting Room!" << endl;
+				//remove barberState Mutex
+				mutexRemove(sem_barberState_id);
+				cout << "Parent process : Mutex barberState removed"<< endl;
+				//remove waitingCustomers Mutex
+				mutexRemove(sem_waitingCustomers_id);
+				cout << "Parent process : Mutex waitingCustomers removed"<< endl;
+				// Remove the shared memory
+				if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
+				{
+					perror("Parent process : shmctl() failed for barberShop !");
+					exit(EXIT_FAILURE);
+				}
+				else
+				{
+					cout << "Parent process : Shared memory barberShop removed"<< endl;
+				}
 				return EXIT_FAILURE;
 			}
 		}
@@ -171,6 +258,22 @@ int main(int argc, char **argv)
 		{
 			// fork failed
 			cout << "Parent process : fork() failed for creation of Customer Generator!" << endl;
+			//remove barberState Mutex
+			mutexRemove(sem_barberState_id);
+			cout << "Parent process : Mutex barberState removed"<< endl;
+			//remove waitingCustomers Mutex
+			mutexRemove(sem_waitingCustomers_id);
+			cout << "Parent process : Mutex waitingCustomers removed"<< endl;
+			// Remove the shared memory
+			if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
+			{
+				perror("Parent process : shmctl() failed for barberShop !");
+				exit(EXIT_FAILURE);
+			}
+			else
+			{
+				cout << "Parent process : Shared memory barberShop removed"<< endl;
+			}
 			return EXIT_FAILURE;
 		}
     }
@@ -178,6 +281,22 @@ int main(int argc, char **argv)
     {
         // fork failed
         cout << "Parent process : fork() failed for creation of Barber Roon!" << endl;
+		//remove barberState Mutex
+		mutexRemove(sem_barberState_id);
+		cout << "Parent process : Mutex barberState removed"<< endl;
+		//remove waitingCustomers Mutex
+		mutexRemove(sem_waitingCustomers_id);
+		cout << "Parent process : Mutex waitingCustomers removed"<< endl;
+        // Remove the shared memory
+		if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
+		{
+			perror("Parent process : shmctl() failed for barberShop !");
+			exit(EXIT_FAILURE);
+		}
+		else
+		{
+			cout << "Parent process : Shared memory barberShop removed"<< endl;
+		}
         return EXIT_FAILURE;
     }
 

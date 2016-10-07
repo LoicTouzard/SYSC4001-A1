@@ -1,5 +1,5 @@
 EXE=PartC
-INT=BarberRoom.hpp CustomerGenerator.hpp WaitingRoom.hpp 
+INT=BarberRoom.hpp CustomerGenerator.hpp WaitingRoom.hpp mutex.hpp
 
 SRC=$(INT:.hpp=.cpp)
 OBJ=$(INT:.hpp=.o)
