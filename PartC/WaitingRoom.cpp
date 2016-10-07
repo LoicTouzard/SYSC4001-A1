@@ -44,6 +44,11 @@ void WaitingRoom::freeCustomer()
 	cout << "WaitingRoom : Freed a customer (" << this->shopState->amount << " customers in the room)" << endl;
 }
 
+int WaitingRoom::getRejectedCustomers()
+{
+	return this->rejectedCustomers;
+}
+
 WaitingRoom::~WaitingRoom()
 {
 	//cout << "WaitingRoom : Destroyed" << endl;

@@ -3,6 +3,7 @@
 using namespace std;
 
 #include "BarberRoom.hpp"
+#include "mutex.hpp"
 
 BarberRoom::BarberRoom(unsigned int timeForShavingMS, barberShop *shopState)
 {
@@ -14,16 +15,19 @@ BarberRoom::BarberRoom(unsigned int timeForShavingMS, barberShop *shopState)
 //cuts hair of a custommer
 void BarberRoom::shaveCustomer()
 {
-	this->shopState->sleeping = false;
 	//usleep(this->timeForShavingMS*1000);
 	cout << "BarberRoom : Shave a customer" << endl;
 	
 }
 
-
-bool BarberRoom::isSleeping()
+void BarberRoom::awaken()
 {
-	return this->shopState->sleeping;
+	this->shopState->sleeping = false;
+}
+
+void BarberRoom::fallAsleep()
+{
+	this->shopState->sleeping = true;
 }
 
 BarberRoom::~BarberRoom()

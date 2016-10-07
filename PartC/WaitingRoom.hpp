@@ -23,6 +23,8 @@ class WaitingRoom
 		void freeCustomer();
 		
 		virtual ~WaitingRoom();
+		
+		int getRejectedCustomers();
 	
 	// attributes
 	private:

@@ -21,31 +21,46 @@
 
 using namespace std;
 
-void barberProcess(BarberRoom* barber, WaitingRoom* room)
+void barberProcess(BarberRoom* barber, WaitingRoom* room, int sem_barberState_id, int sem_waitingCustomers_id)
 {
 	int haircut = 0;
 	while(true)
 	{
-		if(!room->isEmpty())// if there is a custommer
+		if(!room->isEmpty())// if there is a customer
 		{
+			mutexWait(sem_barberState_id, 0);
+			barber->awaken();
+			mutexSignal(sem_barberState_id);
+			
+			mutexWait(sem_waitingCustomers_id, 0);
 			room->freeCustomer(); // he leaves the waiting room
-			barber->shaveCustomer();// takes some time
+			mutexSignal(sem_waitingCustomers_id);
+			
+			barber->shaveCustomer(); // takes some time
 			cout << ++haircut << " customers shaved" << endl;
+		}
+		else
+		{
+			mutexWait(sem_barberState_id, 0);
+			barber->fallAsleep();
+			mutexSignal(sem_barberState_id);
 		}
 	}
 }
 
-void waitingRoomProcess(WaitingRoom* room, BarberRoom* barber)
+void waitingRoomProcess()
 {
 	// How is this process supposed to do something ? the waiting Room is for me just a shared ressource used by the 2 others processes.
 }
 
-void customerGeneratorProcess(CustomerGenerator* customers, WaitingRoom* room)
+void customerGeneratorProcess(CustomerGenerator* customers, WaitingRoom* room, int sem_waitingCustomers_id)
 {
-	for(int i = 1; i <= 100000; ++i) // generate 100000 customers
+	for(int i = 1; i <= 10; ++i) // generate 100000 customers
 	{
 		customers->nextCustomer(); // generates a new customer
+		mutexWait(sem_waitingCustomers_id, 0);
 		room->newCustomer(); // attemps to add him in the waiting room
+		mutexSignal(sem_waitingCustomers_id);
 	}
 }
 
@@ -156,12 +171,14 @@ int main(int argc, char **argv)
     // create the barber room
     if ((barber_pid = fork()) == 0)
     {
+		
 		delete customers;
 		// Barber process
-		barberProcess(barber, room);
+		barberProcess(barber, room, sem_barberState_id, sem_waitingCustomers_id);
 		delete room;
 		delete barber;
 		cout << "BarberRoom : End of barber process" << endl;
+		
     }
     else if (barber_pid > 0)
     {
@@ -171,12 +188,15 @@ int main(int argc, char **argv)
 		// create the customers generator
 		if ((customers_pid = fork()) == 0)
 		{
+			
 			// customers generator process
 			delete barber;
-			customerGeneratorProcess(customers, room);
+			customerGeneratorProcess(customers, room, sem_waitingCustomers_id);
 			delete customers;
 			delete room;
 			cout << "CustomerGenerator : End of customer generator process" << endl;
+			cout << "Total of " << room->getRejectedCustomers() << " rejected customers" << endl;
+			
 		}
 		else if (customers_pid > 0)
 		{
@@ -186,12 +206,14 @@ int main(int argc, char **argv)
 			// create the waiting room
 			if ((room_pid = fork()) == 0)
 			{
+				
 				// waiting room process
-				waitingRoomProcess(room, barber);
 				delete customers;
 				delete room;
 				delete barber;	
+				waitingRoomProcess();
 				cout << "WaitingRoom : End of waiting room process" << endl;
+				
 			}
 			else if (customers_pid > 0)
 			{

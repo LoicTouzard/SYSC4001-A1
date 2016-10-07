@@ -13,8 +13,9 @@ class BarberRoom
 		//cuts hair of a custommer
 		void shaveCustomer();
 		
-		// tells if the barber is sleeping
-		bool isSleeping();
+		void awaken();
+		
+		void fallAsleep();
 	
 		virtual ~BarberRoom();
 		
