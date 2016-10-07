@@ -103,3 +103,83 @@ BarberRoom : Shave a customer
 Here our memory has been corrupted because the barber and the generator modified the numner of people in the waiting room at the same time.
 
 So to correct issue this I need to add semaphores.
+
+
+
+
+
+Parent process : Shared memory barberShop created
+Parent process : Shared memory barberShop attached
+Parent process : Mutex barberReady created
+Parent process : Semaphore waitingRoomSeats created
+Parent process : Semaphore sem_customerReady_id created
+WaitingRoom : Created (with 4 chairs)
+BarberRoom : Created (Shaving time set at 1000ms)
+CustomerGenerator : Created (Generating rate between 500ms and 1000ms)
+Parent process : Barber PID = 9066
+Parent process : Customer Generator PID = 9067
+Parent process : Waiting Room PID = 9068
+CustomerGenerator : New customer created in 530ms
+WaitingRoom : Accepted a new customer (1 customers in the room)
+CustomerGenerator : New customer created in 723ms
+WaitingRoom : Accepted a new customer (2 customers in the room)
+WaitingRoom : Freed a customer (1 customers in the room)
+BarberRoom : Shave a customer
+BarberRoom : 1 customers shaved
+WaitingRoom : Freed a customer (0 customers in the room)
+BarberRoom : Shave a customer
+BarberRoom : 2 customers shaved
+CustomerGenerator : New customer created in 679ms
+WaitingRoom : End of waiting room process
+WaitingRoom : Accepted a new customer (1 customers in the room)
+CustomerGenerator : New customer created in 791ms
+WaitingRoom : Accepted a new customer (2 customers in the room)
+WaitingRoom : Freed a customer (1 customers in the room)
+BarberRoom : Shave a customer
+BarberRoom : 3 customers shaved
+WaitingRoom : Freed a customer (0 customers in the room)
+BarberRoom : Shave a customer
+BarberRoom : 4 customers shaved
+CustomerGenerator : New customer created in 841ms
+WaitingRoom : Accepted a new customer (1 customers in the room)
+CustomerGenerator : New customer created in 854ms
+WaitingRoom : Accepted a new customer (2 customers in the room)
+WaitingRoom : Freed a customer (1 customers in the room)
+BarberRoom : Shave a customer
+BarberRoom : 5 customers shaved
+WaitingRoom : Freed a customer (0 customers in the room)
+BarberRoom : Shave a customer
+BarberRoom : 6 customers shaved
+CustomerGenerator : New customer created in 696ms
+WaitingRoom : Accepted a new customer (1 customers in the room)
+CustomerGenerator : New customer created in 860ms
+WaitingRoom : Accepted a new customer (2 customers in the room)
+WaitingRoom : Freed a customer (1 customers in the room)
+BarberRoom : Shave a customer
+BarberRoom : 7 customers shaved
+WaitingRoom : Freed a customer (0 customers in the room)
+BarberRoom : Shave a customer
+BarberRoom : 8 customers shaved
+CustomerGenerator : New customer created in 554ms
+WaitingRoom : Accepted a new customer (1 customers in the room)
+CustomerGenerator : New customer created in 941ms
+WaitingRoom : Accepted a new customer (2 customers in the room)
+WaitingRoom : Freed a customer (1 customers in the room)
+BarberRoom : Shave a customer
+BarberRoom : 9 customers shaved
+WaitingRoom : Freed a customer (0 customers in the room)
+BarberRoom : Shave a customer
+CustomerGenerator : End of customer generator process
+BarberRoom : 10 customers shaved
+Total of 0 rejected customers
+BarberRoom : End of barber process
+Parent process : Got dead child : 9068
+Parent process : Got dead child : 9067
+Parent process : Got dead child : 9066
+Parent process : Mutex barberReady removed
+Parent process : Semaphore waitingRoomSeats removed
+Parent process : Semaphore sem_customerReady_id removed
+Parent process : Shared memory barberShop removed
+Parent process : End of parent process
+
+

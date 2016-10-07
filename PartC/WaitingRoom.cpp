@@ -24,18 +24,16 @@ bool WaitingRoom::isEmpty()
 	return this->shopState->amount == 0;
 }
 
-void WaitingRoom::newCustomer()
+void WaitingRoom::acceptCustomer()
 {
-	if(!this->isFull())
-	{
-		this->shopState->amount++;
-		cout << "WaitingRoom : Accepted a new customer (" << this->shopState->amount << " customers in the room)" << endl;	
-	}
-	else
-	{
-		rejectedCustomers++;
-		cout << "WaitingRoom : Rejected a new customer (" << this->shopState->amount << " customers already in the room) " << rejectedCustomers << " so far." << endl;	
-	}
+	this->shopState->amount++;
+	cout << "WaitingRoom : Accepted a new customer (" << this->shopState->amount << " customers in the room)" << endl;	
+}
+
+void WaitingRoom::rejectCustomer()
+{
+	rejectedCustomers++;
+	cout << "WaitingRoom : Rejected a new customer (" << this->shopState->amount << " customers already in the room) " << rejectedCustomers << " so far." << endl;
 }
 
 void WaitingRoom::freeCustomer()

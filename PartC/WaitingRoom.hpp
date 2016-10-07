@@ -17,7 +17,10 @@ class WaitingRoom
 		bool isEmpty();
 		
 		// A new customer sits in the room
-		void newCustomer();
+		void acceptCustomer();
+		
+		// A new customer can't sit in the room
+		void rejectCustomer();
 		
 		// A customer leaves the room
 		void freeCustomer();

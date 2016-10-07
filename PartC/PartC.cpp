@@ -13,38 +13,33 @@
 #include <semaphore.h>
 
 #include "ipcInfo.hpp"
-#include "mutex.hpp"
+#include "sem-mut-utils.hpp"
 #include "BarberRoom.hpp"
 #include "CustomerGenerator.hpp"
 #include "WaitingRoom.hpp"
 
+#define WAITING_ROOM_SEATS 4
+#define CUSTOMER_TO_GENERATE 10
+#define HAIRCUT_TIME 1000u // ms
+#define GENERATION_MIN 500u // ms
+#define GENERATION_MAX 1000u // ms
+
 
 using namespace std;
 
-void barberProcess(BarberRoom* barber, WaitingRoom* room, int sem_barberState_id, int sem_waitingCustomers_id)
+void barberProcess(BarberRoom* barber, WaitingRoom* room, int sem_barberReady_id, int sem_waitingRoomSeats_id, int sem_customerReady_id)
 {
-	int haircut = 0;
-	while(true)
+	int haircutDone = 0;
+	while(haircutDone < CUSTOMER_TO_GENERATE)
 	{
-		if(!room->isEmpty())// if there is a customer
-		{
-			mutexWait(sem_barberState_id, 0);
-			barber->awaken();
-			mutexSignal(sem_barberState_id);
-			
-			mutexWait(sem_waitingCustomers_id, 0);
-			room->freeCustomer(); // he leaves the waiting room
-			mutexSignal(sem_waitingCustomers_id);
-			
-			barber->shaveCustomer(); // takes some time
-			cout << ++haircut << " customers shaved" << endl;
-		}
-		else
-		{
-			mutexWait(sem_barberState_id, 0);
-			barber->fallAsleep();
-			mutexSignal(sem_barberState_id);
-		}
+		semaphoreWaitOne(sem_customerReady_id, 0);// wait for a customer
+		semaphoreWaitOne(sem_waitingRoomSeats_id, 0); // need access to modify the number of seats renaining
+		room->freeCustomer(); // the customer leaves the waiting room
+		mutexSignal(sem_barberReady_id);
+		barber->awaken();
+		semaphoreSignalOne(sem_waitingRoomSeats_id); // free the seats shared memory
+		barber->shaveCustomer(); // takes some time
+		cout << "BarberRoom : " << ++haircutDone << " customers shaved" << endl;
 	}
 }
 
@@ -53,14 +48,24 @@ void waitingRoomProcess()
 	// How is this process supposed to do something ? the waiting Room is for me just a shared ressource used by the 2 others processes.
 }
 
-void customerGeneratorProcess(CustomerGenerator* customers, WaitingRoom* room, int sem_waitingCustomers_id)
+void customerGeneratorProcess(CustomerGenerator* customers, WaitingRoom* room, BarberRoom* barber, int sem_barberReady_id, int sem_waitingRoomSeats_id, int sem_customerReady_id)
 {
-	for(int i = 1; i <= 10; ++i) // generate 100000 customers
+	for(int i = 1; i <= CUSTOMER_TO_GENERATE; ++i) // generate 100000 customers
 	{
 		customers->nextCustomer(); // generates a new customer
-		mutexWait(sem_waitingCustomers_id, 0);
-		room->newCustomer(); // attemps to add him in the waiting room
-		mutexSignal(sem_waitingCustomers_id);
+		semaphoreWaitOne(sem_waitingRoomSeats_id, 0); // need access to modify the number of seats renaining
+		if(!room->isFull())// If the room is not full
+		{
+			room->acceptCustomer();
+			semaphoreSignalOne(sem_customerReady_id); // another customer is ready
+			semaphoreSignalOne(sem_waitingRoomSeats_id);
+			mutexWait(sem_barberReady_id,0);// Job's done for the barber, get back to sleep
+			barber->fallAsleep();
+		}
+		else
+		{
+			semaphoreSignalOne(sem_waitingRoomSeats_id);
+		}
 	}
 }
 
@@ -70,8 +75,9 @@ int main(int argc, char **argv)
 	/* create IPCs */
 	int barberShop_id;
 	barberShop *shm_barberShop;
-	int sem_barberState_id;
-	int sem_waitingCustomers_id;
+	int sem_barberReady_id;
+	int sem_waitingRoomSeats_id;
+	int sem_customerReady_id;
 	
 	
 	
@@ -114,9 +120,9 @@ int main(int argc, char **argv)
 	
 	
 	// creates the semaphores
-	if ((sem_barberState_id = mutexCreate()) < 0)
+	if ((sem_barberReady_id = mutexCreate()) < 0)
     {
-        perror("Parent process : mutexCreate() failed for barberState !");
+        perror("Parent process : mutexCreate() failed for barberReady !");
         // Remove the shared memory
 		if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
 		{
@@ -130,14 +136,14 @@ int main(int argc, char **argv)
     }
     else
     {
-		cout << "Parent process : Mutex barberState created"<< endl;
+		cout << "Parent process : Mutex barberReady created"<< endl;
 	}
-	if ((sem_waitingCustomers_id = mutexCreate()) < 0)
+	if ((sem_waitingRoomSeats_id = semaphoreCreate(1)) < 0)
     {
-        perror("Parent process : mutexCreate() failed for waitingCustomers !");
+        perror("Parent process : semaphoreCreate() failed for waitingRoomSeats !");
         //remove the other semaphore
-		mutexRemove(sem_barberState_id);
-		cout << "Parent process : Mutex barberState removed"<< endl;
+		mutexRemove(sem_barberReady_id);
+		cout << "Parent process : Mutex barberReady removed"<< endl;
         // Remove the shared memory
 		if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
 		{
@@ -151,18 +157,39 @@ int main(int argc, char **argv)
     }
     else
     {
-		cout << "Parent process : Mutex waitingCustomers created"<< endl;
+		cout << "Parent process : Semaphore waitingRoomSeats created"<< endl;
+	}
+	if ((sem_customerReady_id = semaphoreCreate(0)) < 0)
+    {
+        perror("Parent process : semaphoreCreate() failed for sem_customerReady_id !");
+        //remove the other semaphore
+		semaphoreRemove(sem_waitingRoomSeats_id);
+		mutexRemove(sem_barberReady_id);
+		cout << "Parent process : Mutex barberReady removed"<< endl;
+        // Remove the shared memory
+		if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
+		{
+			perror("Parent process : shmctl() failed for barberShop !");
+		}
+		else
+		{
+			cout << "Parent process : Shared memory barberShop removed"<< endl;
+		}
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+		cout << "Parent process : Semaphore sem_customerReady_id created"<< endl;
 	}
 	
 	
 	
 	
 	
-	/* creates objects*/
-	
-	WaitingRoom* room = new WaitingRoom(4, shm_barberShop);
-	BarberRoom* barber = new BarberRoom(1u, shm_barberShop);
-	CustomerGenerator* customers = new CustomerGenerator(500u,600u);
+	/* creating objects*/
+	WaitingRoom* room = new WaitingRoom(WAITING_ROOM_SEATS, shm_barberShop);
+	BarberRoom* barber = new BarberRoom(HAIRCUT_TIME, shm_barberShop);
+	CustomerGenerator* customers = new CustomerGenerator(GENERATION_MIN,GENERATION_MAX);
 	
 
 	/* start processes */
@@ -174,7 +201,7 @@ int main(int argc, char **argv)
 		
 		delete customers;
 		// Barber process
-		barberProcess(barber, room, sem_barberState_id, sem_waitingCustomers_id);
+		barberProcess(barber, room, sem_barberReady_id, sem_waitingRoomSeats_id, sem_customerReady_id);
 		delete room;
 		delete barber;
 		cout << "BarberRoom : End of barber process" << endl;
@@ -191,7 +218,7 @@ int main(int argc, char **argv)
 			
 			// customers generator process
 			delete barber;
-			customerGeneratorProcess(customers, room, sem_waitingCustomers_id);
+			customerGeneratorProcess(customers, room, barber, sem_barberReady_id, sem_waitingRoomSeats_id, sem_customerReady_id);
 			delete customers;
 			delete room;
 			cout << "CustomerGenerator : End of customer generator process" << endl;
@@ -234,12 +261,15 @@ int main(int argc, char **argv)
 				cout << "Parent process : Got dead child : " << dead << endl;
 				
 				
-				//remove barberState Mutex
-				mutexRemove(sem_barberState_id);
-				cout << "Parent process : Mutex barberState removed"<< endl;
-				//remove waitingCustomers Mutex
-				mutexRemove(sem_waitingCustomers_id);
-				cout << "Parent process : Mutex waitingCustomers removed"<< endl;
+				//remove barberReady Mutex
+				mutexRemove(sem_barberReady_id);
+				cout << "Parent process : Mutex barberReady removed"<< endl;
+				//remove waitingRoomSeats Semaphore
+				semaphoreRemove(sem_waitingRoomSeats_id);
+				cout << "Parent process : Semaphore waitingRoomSeats removed"<< endl;
+				//remove waitingRoomSeats Semaphore
+				semaphoreRemove(sem_customerReady_id);
+				cout << "Parent process : Semaphore sem_customerReady_id removed"<< endl;
 				// Remove the shared memory
 				if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
 				{
@@ -257,12 +287,15 @@ int main(int argc, char **argv)
 			{
 				// fork failed
 				cout << "Parent process : fork() failed for creation of Waiting Room!" << endl;
-				//remove barberState Mutex
-				mutexRemove(sem_barberState_id);
-				cout << "Parent process : Mutex barberState removed"<< endl;
-				//remove waitingCustomers Mutex
-				mutexRemove(sem_waitingCustomers_id);
-				cout << "Parent process : Mutex waitingCustomers removed"<< endl;
+				//remove barberReady Mutex
+				mutexRemove(sem_barberReady_id);
+				cout << "Parent process : Mutex barberReady removed"<< endl;
+				//remove waitingRoomSeats Semaphore
+				semaphoreRemove(sem_waitingRoomSeats_id);
+				cout << "Parent process : Semaphore waitingRoomSeats removed"<< endl;
+				//remove waitingRoomSeats Semaphore
+				semaphoreRemove(sem_customerReady_id);
+				cout << "Parent process : Semaphore sem_customerReady_id removed"<< endl;
 				// Remove the shared memory
 				if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
 				{
@@ -280,12 +313,15 @@ int main(int argc, char **argv)
 		{
 			// fork failed
 			cout << "Parent process : fork() failed for creation of Customer Generator!" << endl;
-			//remove barberState Mutex
-			mutexRemove(sem_barberState_id);
-			cout << "Parent process : Mutex barberState removed"<< endl;
-			//remove waitingCustomers Mutex
-			mutexRemove(sem_waitingCustomers_id);
-			cout << "Parent process : Mutex waitingCustomers removed"<< endl;
+			//remove barberReady Mutex
+			mutexRemove(sem_barberReady_id);
+			cout << "Parent process : Mutex barberReady removed"<< endl;
+			//remove waitingRoomSeats Semaphore
+			semaphoreRemove(sem_waitingRoomSeats_id);
+			cout << "Parent process : Semaphore waitingRoomSeats removed"<< endl;
+			//remove waitingRoomSeats Semaphore
+			semaphoreRemove(sem_customerReady_id);
+			cout << "Parent process : Semaphore sem_customerReady_id removed"<< endl;
 			// Remove the shared memory
 			if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
 			{
@@ -303,12 +339,15 @@ int main(int argc, char **argv)
     {
         // fork failed
         cout << "Parent process : fork() failed for creation of Barber Roon!" << endl;
-		//remove barberState Mutex
-		mutexRemove(sem_barberState_id);
-		cout << "Parent process : Mutex barberState removed"<< endl;
-		//remove waitingCustomers Mutex
-		mutexRemove(sem_waitingCustomers_id);
-		cout << "Parent process : Mutex waitingCustomers removed"<< endl;
+		//remove barberReady Mutex
+		mutexRemove(sem_barberReady_id);
+		cout << "Parent process : Mutex barberReady removed"<< endl;
+		//remove waitingRoomSeats Semaphore
+		semaphoreRemove(sem_waitingRoomSeats_id);
+		cout << "Parent process : Semaphore waitingRoomSeats removed"<< endl;
+		//remove waitingRoomSeats Semaphore
+		semaphoreRemove(sem_customerReady_id);
+		cout << "Parent process : Semaphore sem_customerReady_id removed"<< endl;
         // Remove the shared memory
 		if (shmctl(barberShop_id, IPC_RMID, (struct shmid_ds *) 0) < 0)
 		{
